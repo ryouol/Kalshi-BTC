@@ -1,0 +1,14 @@
+{
+  "name": "sim-wasm",
+  "version": "0.1.0",
+  "files": ["pkg"],
+  "main": "./pkg/sim_wasm.js",
+  "types": "./pkg/sim_wasm.d.ts",
+  "scripts": {
+    "build": "wasm-pack build --target web --out-dir pkg",
+    "build:node": "wasm-pack build --target nodejs --out-dir pkg-node"
+  },
+  "devDependencies": {
+    "wasm-pack": "^0.12.1"
+  }
+}

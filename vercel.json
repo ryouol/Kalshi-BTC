@@ -1,0 +1,28 @@
+{
+  "buildCommand": "pnpm run build:wasm && pnpm build",
+  "framework": "nextjs",
+  "env": {
+    "KALSHI_API_KEY": "@kalshi-api-key",
+    "KALSHI_API_SECRET": "@kalshi-api-secret",
+    "KALSHI_BASE_URL": "https://api.elections.kalshi.com/trade-api/v2"
+  },
+  "functions": {
+    "apps/web/app/api/calibrate/route.ts": {
+      "maxDuration": 30
+    },
+    "apps/web/app/api/kalshi/markets/route.ts": {
+      "maxDuration": 10
+    }
+  },
+  "headers": [
+    {
+      "source": "/sim_wasm_bg.wasm",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    }
+  ]
+}
