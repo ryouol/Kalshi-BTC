@@ -19,8 +19,8 @@ export const DEFAULT_HESTON_PARAMS = {
 
 export const DEFAULT_JUMP_PARAMS = {
   lambda: 0.1,   // 0.1 jumps per hour on average
-  muJ: 0,        // symmetric jumps
-  sigmaJ: 0.02,  // 2% jump size std dev
+  mu_j: 0,       // symmetric jumps
+  sigma_j: 0.02, // 2% jump size std dev
   kind: 'merton' as const,
 };
 

@@ -90,15 +90,15 @@ function estimateJumpParams(returns: number[], threshold = 3): JumpParams {
   
   // Estimate jump size distribution
   const logJumps = jumps.map(j => Math.log(Math.abs(j)));
-  const muJ = logJumps.reduce((sum, j) => sum + j, 0) / logJumps.length;
-  const sigmaJ = Math.sqrt(
-    logJumps.reduce((sum, j) => sum + Math.pow(j - muJ, 2), 0) / (logJumps.length - 1)
+  const mu_j = logJumps.reduce((sum, j) => sum + j, 0) / logJumps.length;
+  const sigma_j = Math.sqrt(
+    logJumps.reduce((sum, j) => sum + Math.pow(j - mu_j, 2), 0) / (logJumps.length - 1)
   );
   
   return {
     lambda: Math.max(0.01, Math.min(1.0, lambda)), // Clamp to reasonable range
-    muJ: 0, // Assume symmetric jumps for simplicity
-    sigmaJ: Math.max(0.01, Math.min(0.1, sigmaJ)),
+    mu_j: 0, // Assume symmetric jumps for simplicity
+    sigma_j: Math.max(0.01, Math.min(0.1, sigma_j)),
     kind: 'merton',
   };
 }

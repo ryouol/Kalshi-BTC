@@ -55,36 +55,31 @@ async function runSimulation(inputs: any, target: any, paths: number, batchSize:
     engine = new MonteCarloEngine(JSON.stringify(inputs));
     
     // Run in batches for progressive updates
-    const results = engine.run_batch(
+    const rawResults = engine.run_batch(
       JSON.stringify(target),
       paths,
       batchSize
     );
     
-    // Send intermediate results
-    for (let i = 0; i < results.length; i++) {
-      const result = JSON.parse(results[i] as string);
+    const results = Array.from(rawResults) as string[];
+    if (!results.length) {
+      throw new Error('Simulation finished without results');
+    }
+    
+    const finalPayload = JSON.parse(results[results.length - 1]);
+    
+    for (let i = 0; i < results.length - 1; i++) {
+      const progressResult = JSON.parse(results[i]);
       self.postMessage({
         type: 'progress',
-        result,
-        progress: ((i + 1) / results.length) * 100,
+        result: progressResult,
+        progress: ((i + 1) / (results.length - 1)) * 100,
       });
     }
     
-    // Send final result
-    const finalResult = JSON.parse(results[results.length - 1] as string);
     self.postMessage({
       type: 'complete',
-      result: {
-        target,
-        p: finalResult.p,
-        ci: finalResult.ci,
-        fair: finalResult.fair,
-        diagnostics: {
-          stderr: Math.sqrt(finalResult.p * (1 - finalResult.p) / paths),
-          n: paths,
-        },
-      },
+      result: finalPayload,
       cacheKey,
     });
   } catch (error) {

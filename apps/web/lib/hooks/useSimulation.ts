@@ -122,10 +122,9 @@ export function useSimulation() {
     const xi = 0.3; // Fixed vol of vol for now
     
     return {
-      S0: currentPrice,
-      T: Math.max(0.01, timeToClose), // At least 0.01 hours
+      s0: currentPrice,
+      t: Math.max(0.01, timeToClose), // At least 0.01 hours
       dt: 1 / 60, // 1-minute steps
-      nPaths: 0, // Not used in this context
       regimes: {
         BULL: {
           mu: 0.05 / 365 / 24, // 5% annual drift per hour
@@ -147,13 +146,13 @@ export function useSimulation() {
         },
       },
       hmm: {
-        P: [[0.95, 0.05], [0.10, 0.90]], // Transition matrix
+        p: [[0.95, 0.05], [0.10, 0.90]], // Transition matrix
         pi0: calibration.regime.probabilities,
       },
       jumps: {
         lambda: calibration.jumps.lambda * jumpIntensityMultiplier,
-        muJ: calibration.jumps.muJ,
-        sigmaJ: calibration.jumps.sigmaJ * jumpSizeMultiplier,
+        mu_j: calibration.jumps.mu_j,
+        sigma_j: calibration.jumps.sigma_j * jumpSizeMultiplier,
         kind: 'merton',
       },
     };

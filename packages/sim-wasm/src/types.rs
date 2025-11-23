@@ -66,12 +66,41 @@ pub struct SimDiagnostics {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PathPoint {
+    pub t: f64,
+    pub price: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PathSample {
+    pub id: u32,
+    pub points: Vec<PathPoint>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HistogramBin {
+    pub price: f64,
+    pub probability: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DistributionSummary {
+    pub min: f64,
+    pub max: f64,
+    pub mean: f64,
+    pub stddev: f64,
+    pub histogram: Vec<HistogramBin>,
+    pub samples: Vec<PathSample>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SimResult {
     pub target: Target,
     pub p: f64,
     pub ci: [f64; 2],
     pub fair: f64,
     pub diagnostics: SimDiagnostics,
+    pub distribution: Option<DistributionSummary>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

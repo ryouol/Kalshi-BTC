@@ -1,7 +1,8 @@
 'use client';
 
-import { SimResult, KalshiMarket, formatProbability, formatPrice, formatEdge } from 'shared';
-import { Trophy, TrendUp, TrendDown, CircleNotch, ChartLine } from '@phosphor-icons/react';
+import { SimResult, KalshiMarket, formatProbability, formatPrice, formatEdge, DEFAULT_SIMULATION_PATHS } from 'shared';
+import { Trophy, TrendUp, TrendDown, CircleNotch, ChartLine, Activity } from '@phosphor-icons/react';
+import { SimulationCharts } from './SimulationCharts';
 
 interface ProbabilityCardProps {
   market: KalshiMarket;
@@ -45,6 +46,11 @@ export function ProbabilityCard({ market, result, isSimulating, progress = 0 }: 
   };
   
   const edge = getEdgeRecommendation();
+  const yesLabel = market.strike_price ? 'Above' : 'In Range';
+  const noLabel = market.strike_price ? 'Below' : 'Outside Range';
+  const yesPercent = result ? Math.round(result.p * 100) : 0;
+  const noPercent = 100 - yesPercent;
+  const pathsSimulated = result?.diagnostics?.n ?? DEFAULT_SIMULATION_PATHS;
   
   return (
     <div className="card">
@@ -84,8 +90,36 @@ export function ProbabilityCard({ market, result, isSimulating, progress = 0 }: 
               {formatProbability(result.p)}
             </p>
             <p className="text-sm text-neutral-400 mt-1">
-              Probability of {market.strike_price ? 'Above' : 'In Range'}
+              Probability of {yesLabel}
             </p>
+          </div>
+          
+          {/* Paths + split */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="bg-neutral-900 rounded-lg p-4 flex flex-col items-center justify-center">
+              <Activity size={20} className="text-primary-500 mb-2" />
+              <p className="text-3xl font-bold">{pathsSimulated.toLocaleString()}</p>
+              <p className="text-xs text-neutral-500 uppercase tracking-wide">Monte Carlo Paths</p>
+            </div>
+            <div className="bg-neutral-900 rounded-lg p-4">
+              <p className="text-xs text-neutral-400 mb-2">Probability Split</p>
+              <div className="h-3 bg-neutral-800 rounded-full overflow-hidden flex">
+                <div
+                  className="bg-primary-500"
+                  style={{ width: `${yesPercent}%` }}
+                  aria-label={`${yesLabel} probability`}
+                />
+                <div
+                  className="bg-neutral-600"
+                  style={{ width: `${noPercent}%` }}
+                  aria-label={`${noLabel} probability`}
+                />
+              </div>
+              <div className="flex justify-between text-xs text-neutral-500 mt-2">
+                <span>{yesLabel} {yesPercent}%</span>
+                <span>{noLabel} {noPercent}%</span>
+              </div>
+            </div>
           </div>
           
           {/* Confidence interval */}
@@ -160,9 +194,13 @@ export function ProbabilityCard({ market, result, isSimulating, progress = 0 }: 
             </div>
           )}
           
+          {result.distribution && (
+            <SimulationCharts distribution={result.distribution} />
+          )}
+          
           {/* Model diagnostics */}
           <div className="text-xs text-neutral-500 text-center">
-            {result.diagnostics.n.toLocaleString()} paths simulated
+            {(result.diagnostics?.n ?? DEFAULT_SIMULATION_PATHS).toLocaleString()} paths simulated
           </div>
         </div>
       ) : (

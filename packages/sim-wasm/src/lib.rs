@@ -10,11 +10,91 @@ pub use types::*;
 pub use models::*;
 pub use utils::*;
 
+const MAX_PATH_SAMPLES: usize = 50;
+const HISTOGRAM_BINS: usize = 40;
+
 // Macro for logging to browser console
 macro_rules! log {
     ( $( $t:tt )* ) => {
         console::log_1(&format!( $( $t )* ).into());
     };
+}
+
+fn build_distribution(final_prices: &[f64], samples: Vec<PathSample>) -> Option<DistributionSummary> {
+    if final_prices.is_empty() {
+        return None;
+    }
+    
+    let len = final_prices.len() as f64;
+    let mut min_price = f64::INFINITY;
+    let mut max_price = f64::NEG_INFINITY;
+    let mut sum = 0.0;
+    
+    for price in final_prices {
+        if *price < min_price {
+            min_price = *price;
+        }
+        if *price > max_price {
+            max_price = *price;
+        }
+        sum += *price;
+    }
+    
+    let mean = sum / len;
+    let variance = if len > 1.0 {
+        final_prices
+            .iter()
+            .map(|price| {
+                let diff = price - mean;
+                diff * diff
+            })
+            .sum::<f64>() / (len - 1.0)
+    } else {
+        0.0
+    };
+    let stddev = variance.sqrt();
+    
+    let histogram = if (max_price - min_price).abs() < f64::EPSILON {
+        vec![HistogramBin {
+            price: min_price,
+            probability: 1.0,
+        }]
+    } else {
+        let bin_width = (max_price - min_price) / HISTOGRAM_BINS as f64;
+        let mut counts = vec![0u32; HISTOGRAM_BINS];
+        
+        for price in final_prices {
+            let mut idx = ((price - min_price) / bin_width).floor() as isize;
+            if idx < 0 {
+                idx = 0;
+            }
+            if idx as usize >= HISTOGRAM_BINS {
+                idx = (HISTOGRAM_BINS - 1) as isize;
+            }
+            counts[idx as usize] += 1;
+        }
+        
+        counts
+            .iter()
+            .enumerate()
+            .map(|(i, count)| {
+                let price = min_price + (i as f64 + 0.5) * bin_width;
+                HistogramBin {
+                    price,
+                    probability: *count as f64 / len,
+                }
+            })
+            .collect()
+    };
+    
+    Some(DistributionSummary {
+        min: min_price,
+        max: max_price,
+        mean,
+        stddev,
+        histogram,
+        samples,
+    })
 }
 
 #[wasm_bindgen]
@@ -50,10 +130,25 @@ impl MonteCarloEngine {
         
         let mut hits = 0u32;
         let mut prices = Vec::with_capacity(n_paths as usize);
+        let mut sample_paths: Vec<PathSample> = Vec::new();
         
         // Run simulations
         for i in 0..n_paths {
-            let final_price = self.simulate_path()?;
+            let mut trace = if sample_paths.len() < MAX_PATH_SAMPLES {
+                Some(Vec::new())
+            } else {
+                None
+            };
+            
+            let final_price = match trace.as_mut() {
+                Some(points) => self.simulate_path(Some(points))?,
+                None => self.simulate_path(None)?,
+            };
+            
+            if let Some(points) = trace {
+                sample_paths.push(PathSample { id: i, points });
+            }
+            
             prices.push(final_price);
             
             let hit = match target.kind.as_str() {
@@ -91,6 +186,8 @@ impl MonteCarloEngine {
         // Wilson confidence interval
         let ci = utils::wilson_ci(hits, n_paths, 0.95);
         
+        let distribution = build_distribution(&prices, sample_paths);
+        
         let result = SimResult {
             target,
             p,
@@ -101,6 +198,7 @@ impl MonteCarloEngine {
                 n: n_paths,
                 convergence: None, // TODO: Add convergence tracking
             },
+            distribution,
         };
         
         // Return JSON result
@@ -116,6 +214,8 @@ impl MonteCarloEngine {
         let results = js_sys::Array::new();
         let mut total_hits = 0u32;
         let mut total_paths = 0u32;
+        let mut final_prices: Vec<f64> = Vec::with_capacity(n_paths as usize);
+        let mut sample_paths: Vec<PathSample> = Vec::new();
         
         let num_batches = (n_paths + batch_size - 1) / batch_size;
         
@@ -128,8 +228,25 @@ impl MonteCarloEngine {
             
             // Run batch
             let mut batch_hits = 0u32;
-            for _ in 0..batch_paths {
-                let final_price = self.simulate_path()?;
+            for path_idx in 0..batch_paths {
+                let global_index = batch * batch_size + path_idx;
+                
+                let mut trace = if sample_paths.len() < MAX_PATH_SAMPLES {
+                    Some(Vec::new())
+                } else {
+                    None
+                };
+                
+                let final_price = match trace.as_mut() {
+                    Some(points) => self.simulate_path(Some(points))?,
+                    None => self.simulate_path(None)?,
+                };
+                
+                if let Some(points) = trace {
+                    sample_paths.push(PathSample { id: global_index, points });
+                }
+                
+                final_prices.push(final_price);
                 
                 let hit = match target.kind.as_str() {
                     "above" => final_price > target.K.unwrap(),
@@ -163,10 +280,34 @@ impl MonteCarloEngine {
             results.push(&JsValue::from_str(&result_json));
         }
         
+        // Final summary with distribution and diagnostics
+        let total_p = total_hits as f64 / total_paths as f64;
+        let stderr = (total_p * (1.0 - total_p) / total_paths as f64).sqrt();
+        let ci = utils::wilson_ci(total_hits, total_paths, 0.95);
+        let distribution = build_distribution(&final_prices, sample_paths);
+        
+        let final_result = SimResult {
+            target,
+            p: total_p,
+            ci,
+            fair: total_p * 100.0,
+            diagnostics: SimDiagnostics {
+                stderr,
+                n: total_paths,
+                convergence: None,
+            },
+            distribution,
+        };
+        
+        let final_json = serde_json::to_string(&final_result)
+            .map_err(|e| JsValue::from_str(&format!("Failed to serialize final result: {}", e)))?;
+        
+        results.push(&JsValue::from_str(&final_json));
+        
         Ok(results)
     }
     
-    fn simulate_path(&mut self) -> Result<f64, JsValue> {
+    fn simulate_path(&mut self, mut trace: Option<&mut Vec<PathPoint>>) -> Result<f64, JsValue> {
         let dt = self.sim_inputs.dt;
         let n_steps = (self.sim_inputs.t / dt).ceil() as usize;
         
@@ -178,6 +319,11 @@ impl MonteCarloEngine {
         } else {
             Regime::Bear
         };
+        let mut time = 0.0;
+        
+        if let Some(points) = trace.as_deref_mut() {
+            points.push(PathPoint { t: time, price: s });
+        }
         
         // Simulate path
         for _ in 0..n_steps {
@@ -205,6 +351,11 @@ impl MonteCarloEngine {
             );
             
             s = new_s;
+            time += dt;
+            
+            if let Some(points) = trace.as_deref_mut() {
+                points.push(PathPoint { t: time, price: s });
+            }
         }
         
         Ok(s)

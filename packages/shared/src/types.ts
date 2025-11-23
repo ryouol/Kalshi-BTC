@@ -10,9 +10,9 @@ export interface HestonParams {
 }
 
 export interface JumpParams {
-  lambda: number;  // jump intensity (jumps per unit time)
-  muJ: number;     // mean of log jump size
-  sigmaJ: number;  // std dev of log jump size
+  lambda: number;   // jump intensity (jumps per unit time)
+  mu_j: number;     // mean of log jump size
+  sigma_j: number;  // std dev of log jump size
   kind: "merton" | "kou";
 }
 
@@ -22,16 +22,15 @@ export interface RegimeParams {
 }
 
 export interface HMM {
-  P: [[number, number], [number, number]];  // transition matrix
-  pi0: [number, number];  // initial state probabilities
+  p: [[number, number], [number, number]];   // transition matrix
+  pi0: [number, number];                     // initial state probabilities
 }
 
 // Simulation inputs
 export interface SimInputs {
-  S0: number;     // current price
-  T: number;      // time to maturity (hours)
+  s0: number;     // current price
+  t: number;      // time to maturity (hours)
   dt: number;     // time step size
-  nPaths: number; // number of simulation paths
   regimes: {
     BULL: RegimeParams;
     BEAR: RegimeParams;
@@ -49,6 +48,30 @@ export interface Target {
 }
 
 // Simulation results
+export interface PathPoint {
+  t: number;       // hours from start
+  price: number;   // BTC price along the path
+}
+
+export interface PathSample {
+  id: number;            // path identifier
+  points: PathPoint[];   // sampled path points
+}
+
+export interface HistogramBin {
+  price: number;        // representative price for the bucket
+  probability: number;  // probability mass in this bucket
+}
+
+export interface SimulationDistribution {
+  min: number;
+  max: number;
+  mean: number;
+  stddev: number;
+  histogram: HistogramBin[];
+  samples: PathSample[];
+}
+
 export interface SimResult {
   target: Target;
   p: number;                    // probability
@@ -59,6 +82,7 @@ export interface SimResult {
     n: number;                  // number of paths
     convergence?: number[];     // convergence history
   };
+  distribution?: SimulationDistribution;
 }
 
 // Kalshi market types
@@ -122,8 +146,8 @@ export interface CalibrationData {
   intradayRV: number; // current intraday volatility
   jumps: {
     lambda: number;
-    muJ: number;
-    sigmaJ: number;
+    mu_j: number;
+    sigma_j: number;
   };
   regime: {
     current: Regime;

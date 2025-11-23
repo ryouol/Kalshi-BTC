@@ -1,6 +1,7 @@
 'use client';
 
-import { KalshiMarket, formatPrice, formatTimeRemaining, getSecondsToNextHour } from 'shared';
+import { useMemo } from 'react';
+import { KalshiMarket, formatPrice, formatTimeRemaining } from 'shared';
 import { Trophy, Clock, ChartBar, CaretRight } from '@phosphor-icons/react';
 
 interface MarketListProps {
@@ -11,6 +12,18 @@ interface MarketListProps {
 }
 
 export function MarketList({ markets, selectedMarket, onSelectMarket, isLoading }: MarketListProps) {
+  const estFormatter = useMemo(() => new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York',
+    weekday: 'short',
+    hour: 'numeric',
+    minute: '2-digit',
+  }), []);
+  
+  const formatSettlementWindow = (closeTime: string) => {
+    const date = new Date(closeTime);
+    return estFormatter.format(date);
+  };
+  
   if (isLoading) {
     return (
       <div className="space-y-3">
@@ -40,6 +53,13 @@ export function MarketList({ markets, selectedMarket, onSelectMarket, isLoading 
         const isSelected = market.ticker === selectedMarket;
         const hasOrderbook = market.yes_bid && market.yes_ask;
         const midPrice = hasOrderbook ? (market.yes_bid! + market.yes_ask!) / 2 : null;
+        const settlementTime = formatSettlementWindow(market.close_time);
+        const strikeLabel = market.strike_price
+          ? `$${market.strike_price.toLocaleString()}`
+          : (market.range_low !== undefined && market.range_high !== undefined)
+            ? `$${market.range_low.toLocaleString()} - $${market.range_high.toLocaleString()}`
+            : null;
+        const marketKind = market.strike_price ? 'Above / Below' : 'Price Range';
         
         return (
           <button
@@ -54,12 +74,23 @@ export function MarketList({ markets, selectedMarket, onSelectMarket, isLoading 
             <div className="flex items-start justify-between">
               <div className="flex-1">
                 <h3 className="font-semibold mb-1 flex items-center">
-                  {market.title}
+                  BTC price @ {settlementTime} ET
                   {isSelected && <CaretRight size={20} className="ml-2 text-primary-500" />}
                 </h3>
                 
-                {market.subtitle && (
-                  <p className="text-sm text-neutral-400 mb-2">{market.subtitle}</p>
+                <p className="text-sm text-neutral-400 mb-2">
+                  {marketKind} • {market.subtitle || market.title}
+                </p>
+                
+                {strikeLabel && (
+                  <div className="mb-3">
+                    <p className="text-3xl font-bold">{strikeLabel}</p>
+                    <p className="text-xs text-neutral-500">
+                      {market.strike_price
+                        ? 'Bet if BTC settles above this level'
+                        : 'Bet BTC settles inside this range'}
+                    </p>
+                  </div>
                 )}
                 
                 <div className="flex items-center space-x-4 text-sm">
@@ -98,18 +129,11 @@ export function MarketList({ markets, selectedMarket, onSelectMarket, isLoading 
               )}
             </div>
             
-            {/* Market type badge */}
             <div className="mt-3 flex items-center space-x-2">
-              {market.strike_price && (
-                <span className="badge badge-info">
-                  Above ${market.strike_price.toLocaleString()}
-                </span>
-              )}
-              {market.range_low && market.range_high && (
-                <span className="badge badge-info">
-                  ${market.range_low.toLocaleString()} - ${market.range_high.toLocaleString()}
-                </span>
-              )}
+              <span className="badge badge-info">{marketKind}</span>
+              <span className="badge badge-neutral">
+                Settles {settlementTime} ET
+              </span>
             </div>
           </button>
         );

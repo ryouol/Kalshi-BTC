@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { KalshiClient } from '@/lib/kalshi/client';
-import { isCurrentHourMarket, parseKalshiMarket } from 'shared';
+import { parseKalshiMarket } from 'shared';
 
 // Create singleton client
 let kalshiClient: KalshiClient | null = null;

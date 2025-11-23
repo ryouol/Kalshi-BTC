@@ -151,6 +151,40 @@ export function isCurrentHourMarket(closeTime: string): boolean {
   return close.getTime() === nextHour.getTime();
 }
 
+function parseNumber(value?: string): number | null {
+  if (!value) return null;
+  const cleaned = value.replace(/[^0-9.]/g, '');
+  const parsed = parseFloat(cleaned);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function matchNumber(text: string, patterns: RegExp[]): number | null {
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match?.[1]) {
+      const parsed = parseNumber(match[1]);
+      if (parsed !== null) {
+        return parsed;
+      }
+    }
+  }
+  return null;
+}
+
+function matchRange(text: string, patterns: RegExp[]): [number, number] | null {
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match?.[1] && match?.[2]) {
+      const low = parseNumber(match[1]);
+      const high = parseNumber(match[2]);
+      if (low !== null && high !== null) {
+        return [low, high];
+      }
+    }
+  }
+  return null;
+}
+
 /**
  * Parse Kalshi market type and parameters from API fields and title/subtitle
  */
@@ -160,43 +194,65 @@ export function parseKalshiMarket(market: any): {
   rangeLow?: number;
   rangeHigh?: number;
 } {
-  // First, try to use API fields directly
-  if (market.floor_strike !== undefined && market.strike_type === 'greater') {
-    return { 
-      type: "above", 
-      strike: market.floor_strike 
+  const strikeType = market.strike_type?.toLowerCase();
+  
+  // Prefer API supplied strikes when available
+  if (market.floor_strike !== undefined && market.cap_strike !== undefined) {
+    return {
+      type: "range",
+      rangeLow: market.floor_strike,
+      rangeHigh: market.cap_strike,
     };
   }
   
-  if (market.floor_strike !== undefined && market.cap_strike !== undefined) {
-    return { 
-      type: "range", 
-      rangeLow: market.floor_strike,
-      rangeHigh: market.cap_strike
+  if (
+    market.floor_strike !== undefined &&
+    (
+      !strikeType ||
+      strikeType.includes('greater') ||
+      strikeType.includes('above')
+    )
+  ) {
+    return {
+      type: "above",
+      strike: market.floor_strike,
     };
   }
   
   // Fallback to parsing title/subtitle
   const title = market.title?.toLowerCase() || '';
   const subtitle = market.subtitle?.toLowerCase() || '';
-  const combined = `${title} ${subtitle}`;
+  const combined = `${title} ${subtitle}`.replace(/[–—]/g, '-');
   
-  // Look for above/below pattern
-  const aboveMatch = combined.match(/above\s+\$?([\d,]+)/i);
-  const belowMatch = combined.match(/below\s+\$?([\d,]+)/i);
+  const rangePatterns = [
+    /\$?([\d,]+(?:\.\d+)?)\s*-\s*\$?([\d,]+(?:\.\d+)?)/i,
+    /between\s+\$?([\d,]+(?:\.\d+)?)\s+(?:and|to)\s+\$?([\d,]+(?:\.\d+)?)/i,
+    /\$?([\d,]+(?:\.\d+)?)\s+(?:to|through)\s+\$?([\d,]+(?:\.\d+)?)/i,
+  ];
   
-  if (aboveMatch || belowMatch) {
-    const match = (aboveMatch || belowMatch)!;
-    const strike = parseFloat(match[1].replace(/,/g, ''));
-    return { type: "above", strike };
+  const rangeMatch = matchRange(combined, rangePatterns);
+  if (rangeMatch) {
+    return {
+      type: "range",
+      rangeLow: rangeMatch[0],
+      rangeHigh: rangeMatch[1],
+    };
   }
   
-  // Look for range pattern
-  const rangeMatch = combined.match(/\$?([\d,]+)\s*-\s*\$?([\d,]+)/);
-  if (rangeMatch) {
-    const rangeLow = parseFloat(rangeMatch[1].replace(/,/g, ''));
-    const rangeHigh = parseFloat(rangeMatch[2].replace(/,/g, ''));
-    return { type: "range", rangeLow, rangeHigh };
+  const abovePatterns = [
+    /above\s+\$?([\d,]+(?:\.\d+)?)/i,
+    /over\s+\$?([\d,]+(?:\.\d+)?)/i,
+    /at\s+least\s+\$?([\d,]+(?:\.\d+)?)/i,
+    /\$?([\d,]+(?:\.\d+)?)\s*(?:or\s+)?above/i,
+    /\$?([\d,]+(?:\.\d+)?)\s*(?:or\s+)?higher/i,
+  ];
+  
+  const strike = matchNumber(combined, abovePatterns);
+  if (strike !== null) {
+    return {
+      type: "above",
+      strike,
+    };
   }
   
   return { type: null };

@@ -28,6 +28,9 @@ export interface KalshiMarketResponse {
   no_bid?: number;
   no_ask?: number;
   volume?: number;
+  floor_strike?: number;
+  cap_strike?: number;
+  strike_type?: string;
 }
 
 export interface KalshiLoginResponse {
@@ -181,6 +184,9 @@ export class KalshiClient {
         no_bid: m.no_bid,
         no_ask: m.no_ask,
         volume: m.volume,
+        floor_strike: m.floor_strike,
+        cap_strike: m.cap_strike,
+        strike_type: m.strike_type,
       }));
       
       return {
@@ -216,6 +222,9 @@ export class KalshiClient {
         no_bid: data.market.no_bid,
         no_ask: data.market.no_ask,
         volume: data.market.volume,
+        floor_strike: data.market.floor_strike,
+        cap_strike: data.market.cap_strike,
+        strike_type: data.market.strike_type,
       };
       
       return {

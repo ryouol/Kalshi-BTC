@@ -78,8 +78,10 @@ export class CoinbaseWebSocket {
       };
       
       this.ws.onerror = (event) => {
-        console.error('Coinbase WebSocket error event');
+        console.warn('Coinbase WebSocket error event', event);
         this.onStatusChange('error');
+        this.stopHeartbeat();
+        this.reconnect();
       };
       
       this.ws.onclose = () => {
